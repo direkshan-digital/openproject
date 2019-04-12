@@ -80,12 +80,11 @@ export class DragAndDropService implements OnDestroy {
     } else {
       this.setupAutoscroll([el]);
     }
+    this.autoscroll.setOuterScrollContainer(el);
   }
 
   protected setupAutoscroll(containers:Element[]) {
     // Setup autoscroll
-    const that = this;
-
     this.autoscroll = new DomAutoscrollService(
       containers,
       {

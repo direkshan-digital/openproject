@@ -1,7 +1,7 @@
 import {createPointCB, getClientRect as getRect, pointInside} from 'dom-plane';
 
 export class DomAutoscrollService {
-  public elements:(Element|Window)[];
+  public elements:Element[];
   public scrolling:boolean;
   public down:boolean = false;
   public scrollWhenOutside:boolean;
@@ -11,11 +11,11 @@ export class DomAutoscrollService {
   public animationFrame:number;
   public windowAnimationFrame:number;
   public current:HTMLElement[];
+  public outerScrollContainer:HTMLElement;
   public point:any;
   public pointCB:any;
-  public hasWindow:boolean;
 
-  constructor(elements:(Element|Window)[],
+  constructor(elements:Element[],
               params:any) {
     this.elements = elements;
     this.scrollWhenOutside = params.scrollWhenOutside || false;
@@ -28,40 +28,26 @@ export class DomAutoscrollService {
 
     this.init();
   }
-
+  
   public init() {
-    window.addEventListener('mousemove', this.pointCB, false);
-    window.addEventListener('touchmove', this.pointCB, false);
-
-    this.hasWindow = !!_.find(this.elements, (element) => element === window);
-
-    window.addEventListener('mousemove', this.onMove.bind(this), false);
-    window.addEventListener('touchmove', this.onMove.bind(this), false);
-    window.addEventListener('mouseup', this.onUp.bind(this), false);
-
+    jQuery(window).on('mousemove touchmove', this.pointCB);
+    jQuery(window).on('mousemove touchmove', this.onMove.bind(this));
+    jQuery(window).on('mouseup', this.onUp.bind(this));
     window.addEventListener('scroll', this.setScroll.bind(this), true);
   }
   
   public destroy() {
-    window.removeEventListener('mousemove', this.pointCB, false);
-    window.removeEventListener('touchmove', this.pointCB, false);
+    jQuery(window).off('mousemove touchmove', this.pointCB);
+    jQuery(window).on('mousemove touchmove', this.onMove);
+    jQuery(window).off('mouseup', this.onUp);
+    window.removeEventListener('scroll', this.setScroll);
 
-    window.removeEventListener('mousemove', this.onMove, false);
-    window.removeEventListener('touchmove', this.onMove, false);
-
-    window.addEventListener('mouseup', this.onUp, false);
-
-    window.removeEventListener('scroll', this.setScroll, true);
     this.elements = [];
     this.cleanAnimation();
   }
 
   public add(el:Element) {
     this.elements.push(el);
-  }
-
-  public remove(el:Element) {
-    _.remove(this.elements, el);
   }
 
   public onUp() {
@@ -93,10 +79,6 @@ export class DomAutoscrollService {
     }
 
     let results = [];
-
-    // if (this.current === target) {
-    //   results.push(target);
-    // } else
     if (this.elements.includes(target)) {
       results.push(target);
     }
@@ -123,8 +105,7 @@ export class DomAutoscrollService {
     return underPoint;
   }
 
-  public onMove(event:MouseEvent) {
-
+  public onMove(event:JQueryEventObject) {
     if (!this.autoScroll()) return;
 
     if ((event as any).dispatched) { return; }
@@ -148,35 +129,24 @@ export class DomAutoscrollService {
 
     this.current = target;
 
-    if (this.hasWindow) {
-      cancelAnimationFrame(this.windowAnimationFrame);
-      this.windowAnimationFrame = requestAnimationFrame(this.scrollWindow.bind(this));
-    }
-
-
     if (this.current.length === 0) {
-      return;
+      this.current = [this.outerScrollContainer];
     }
 
     cancelAnimationFrame(this.animationFrame);
     this.animationFrame = requestAnimationFrame(this.scrollTick.bind(this));
   }
 
-  public scrollWindow() {
-    this.scrollAutomatically(window);
-
-    cancelAnimationFrame(this.windowAnimationFrame);
-    this.windowAnimationFrame = requestAnimationFrame(this.scrollWindow.bind(this));
+  public setOuterScrollContainer(el:HTMLElement) {
+    this.outerScrollContainer = el;
   }
 
   public scrollTick() {
-
     if (this.current.length === 0) {
       return;
     }
 
     this.current.forEach((e) => {
-      console.log('automatically: %O', e);
       this.scrollAutomatically(e);
     });
 
@@ -186,47 +156,35 @@ export class DomAutoscrollService {
   }
 
 
-  public scrollAutomatically(el:Element|Window) {
+  public scrollAutomatically(el:Element) {
     let rect = getRect(el);
     let scrollx:number;
     let scrolly:number;
 
     if (this.point.x < rect.left + this.margin) {
-      scrollx = Math.floor(
-        Math.max(-1, (this.point.x - rect.left) / this.margin - 1) * this.maxSpeed
-      );
+      scrollx = -this.maxSpeed
     } else if (this.point.x > rect.right - this.margin) {
-      scrollx = Math.ceil(
-        Math.min(1, (this.point.x - rect.right) / this.margin + 1) * this.maxSpeed
-      );
+      scrollx = this.maxSpeed
     } else {
       scrollx = 0;
     }
 
     if (this.point.y < rect.top + this.margin) {
-      scrolly = Math.floor(
-        Math.max(-1, (this.point.y - rect.top) / this.margin - 1) * this.maxSpeed
-      );
+      scrolly = -this.maxSpeed
     } else if (this.point.y > rect.bottom - this.margin) {
-      scrolly = Math.ceil(
-        Math.min(1, (this.point.y - rect.bottom) / this.margin + 1) * this.maxSpeed
-      );
+      scrolly = this.maxSpeed
     } else {
       scrolly = 0;
     }
 
     setTimeout(()=>{
-
       if (scrolly) {
-        console.log('Scroll Y: %O %O', el, scrolly);
         this.scrollY(el, scrolly);
       }
 
       if (scrollx) {
-        console.log('Scroll X: %O %O', el, scrollx);
         this.scrollX(el, scrollx);
       }
-
     });
   }
 
@@ -246,7 +204,7 @@ export class DomAutoscrollService {
     }
   }
 
-  public inside(point:any, el:Element|Window, rect?:any) {
+  public inside(point:any, el:Element, rect?:any) {
     if (!rect) {
       return pointInside(point, el);
     } else {
